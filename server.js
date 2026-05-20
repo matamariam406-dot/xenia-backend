@@ -129,7 +129,7 @@ app.post("/chat", async (req, res) => {
 });
 
 /* ==========================================================================
-   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Proxy Anti-Bloqueos Render)
+   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Proxy de Alta Disponibilidad)
    ========================================================================== */
 app.get("/search", async (req, res) => {
   try {
@@ -138,34 +138,24 @@ app.get("/search", async (req, res) => {
       return res.status(400).json({ error: "Falta el parámetro de búsqueda" });
     }
 
-    console.log(`🎵 [XENIA ENGINE] Buscando vía Proxy: "${query}"...`);
+    console.log(`🎵 [XENIA ENGINE] Buscando vía API estable: "${query}"...`);
 
-    // Usamos Piped API (un proxy libre) para saltar el bloqueo de IP de Render
-    const response = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all`);
+    // Usamos esta API que es más confiable y no se satura tan fácil
+    const response = await fetch(`https://api.yt-api.org/search?q=${encodeURIComponent(query)}&type=video`);
     
     if (!response.ok) {
-      throw new Error("El proxy de búsqueda está saturado");
+      throw new Error("Servicio de búsqueda temporalmente no disponible");
     }
 
     const data = await response.json();
     
-    // Filtramos solo los resultados que sean videos musicales
-    const videos = (data.items || []).filter(item => item.type === "stream").slice(0, 5);
-
-    if (videos.length === 0) {
-      return res.json({ videos: [] });
-    }
-
-    const formattedVideos = videos.map(v => {
-      // La API devuelve la URL como "/watch?v=ID", extraemos solo el ID:
-      const videoId = v.url.replace("/watch?v=", "");
-      return {
-        id: videoId,
-        title: v.title,
-        // Tu puente de conversión intacto para el reproductor
-        url: `https://convert.qubby.dev/download?id=${videoId}`
-      };
-    });
+    // Mapeo seguro basándonos en la estructura común de respuestas
+    const items = data.data || [];
+    const formattedVideos = items.slice(0, 5).map(v => ({
+      id: v.videoId,
+      title: v.title,
+      url: `https://convert.qubby.dev/download?id=${v.videoId}`
+    }));
 
     res.setHeader('Content-Type', 'application/json');
     return res.json({ videos: formattedVideos });
@@ -175,6 +165,8 @@ app.get("/search", async (req, res) => {
     return res.status(500).json({ videos: [], error: error.message });
   }
 });
+
+
 
 
 /* ============================================================================
