@@ -131,40 +131,67 @@ app.post("/chat", async (req, res) => {
 /* ==========================================================================
    🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Proxy de Alta Disponibilidad)
    ========================================================================== */
-app.get("/search", async (req, res) => {
-  try {
+app.get('/search', async (req, res) => {
     const query = req.query.q;
-    if (!query) return res.status(400).json({ videos: [], error: "No query" });
-
-    console.log(`🔍 [XENIA ENGINE] Búsqueda profunda para: "${query}"...`);
-
-    // Usamos DuckDuckGo para buscar videos de YouTube sin bloqueos de API
-    const response = await fetch(`https://html.duckduckgo.com/html/?q=site:youtube.com+${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-
-    const html = await response.text();
-    const videos = [];
-    
-    // Extraemos resultados del HTML
-    const regex = /href="https:\/\/www\.youtube\.com\/watch\?v=([^"]+)"[^>]*>([^<]+)/g;
-    let match;
-    
-    while ((match = regex.exec(html)) !== null && videos.length < 5) {
-      videos.push({
-        id: match[1],
-        title: match[2].replace(/&quot;/g, '"'),
-        url: `https://convert.qubby.dev/download?id=${match[1]}`
-      });
+    if (!query) {
+        return res.status(400).json({ error: 'Falta el parámetro de búsqueda q' });
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    return res.json({ videos });
+    try {
+        const cleanQuery = encodeURIComponent(query);
+        // Consolidamos la búsqueda usando el buscador móvil de YouTube libre de bloqueos pesados
+        const response = await fetch(`https://www.youtube.com/results?search_query=${cleanQuery}&sp=EgIQAQ%253D%253D`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
 
-  } catch (error) {
-    console.error("❌ Fallo en búsqueda:", error);
-    return res.status(500).json({ videos: [], error: "Fallo interno" });
-  }
+        const html = await response.text();
+        
+        // Expresión regular de alto rendimiento para capturar IDs y Títulos directamente
+        const regex = /"videoRenderer":\{"videoId":"([^"]+)","thumbnail":\{"thumbnails":\[\{"url":"([^"]+)"/g;
+        const titleRegex = /"title":\{"runs":\[\{"text":"([^"]+)"\}\]/;
+        const ownerRegex = /"ownerText":\{"runs":\[\{"text":"([^"]+)"\}\]/;
+
+        const videos = [];
+        let match;
+        let p = 0;
+
+        // Dividimos el HTML por bloques de video para no mezclar títulos
+        const blocks = html.split('"videoRenderer":{');
+        
+        // Nos saltamos el primer bloque que es basura pre-renderizada
+        for (let i = 1; i < blocks.length && videos.length < 15; i++) {
+            const block = blocks[i];
+            
+            const idMatch = block.match(/"videoId":"([^"]+)"/);
+            const titleMatch = block.match(/"title":\{"runs":\[\{"text":"([^"]+)"\}\]/);
+            const artistMatch = block.match(/"longBylineText":\{"runs":\[\{"text":"([^"]+)"\}\]/) || block.match(/"ownerText":\{"runs":\[\{"text":"([^"]+)"\}\]/);
+            const thumbMatch = block.match(/"url":"([^"]+)"/);
+
+            if (idMatch && titleMatch) {
+                const id = idMatch[1];
+                // Limpiamos caracteres extraños que puedan romper el JSON
+                const title = titleMatch[1].replace(/\\u0026/g, '&');
+                const artist = artistMatch ? artistMatch[1].replace(/\\u0026/g, '&') : "YouTube Artist";
+                const cover = thumbMatch ? thumbMatch[1] : `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+
+                videos.push({
+                    id: id,
+                    title: title,
+                    artist: artist,
+                    cover: cover
+                });
+            }
+        }
+
+        // Devolvemos la estructura limpia que la app espera recibir
+        res.json({ videos: videos });
+
+    } catch (error) {
+        console.error('Fallo en módulo de música:', error);
+        res.status(500).json({ videos: [], error: 'Servicio de búsqueda temporalmente no disponible' });
+    }
 });
 
 
