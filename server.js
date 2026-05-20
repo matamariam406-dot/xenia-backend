@@ -3,8 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import fetch from "node-fetch";
-// 🔥 1. Importación correcta de la librería usando ES Modules
-import YouTube from "youtube-sr"; 
+import YouTube from "youtube-sr";
+import ytdl from "@distube/ytdl-core"; // 🔥 Importación fija tipo módulo (eliminados los require de abajo)
 
 dotenv.config();
 
@@ -16,11 +16,11 @@ const PORT = process.env.PORT || 3000;
 const MEMORY_FILE = "./memory.json";
 
 /* ==========================================================================
-   🔍 MOTOR AUTÓNOMO DE BÚSQUEDA WEB (Dependency-Free Scraper)
-   ========================================================================== */
+🔍 MOTOR AUTÓNOMO DE BÚSQUEDA WEB (Dependency-Free Scraper)
+========================================================================== */
 async function performWebSearch(query) {
-  console.log(`🌐 [XENIA ENGINE] Investigando en la Web: "${query}"...`);
-  try {
+  console.log(`🌐 [XENIA ENGINE] Investigando en la Web: "${query}"...`); 
+  try { 
     const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -59,8 +59,8 @@ async function performWebSearch(query) {
 }
 
 /* ==========================================================================
-   🧠 PROMPT DEL SISTEMA: CONTROL COGNITIVO ABSOLUTO
-   ========================================================================== */
+🧠 PROMPT DEL SISTEMA: CONTROL COGNITIVO ABSOLUTO
+========================================================================== */
 const SYSTEM_PROMPT = {
   role: "system",
   content: `Eres Xenia, la inteligencia artificial de nivel élite, ultra-coherente, rápida y con precisión industrial. Eres la asistente personal de César.
@@ -71,25 +71,27 @@ REGLAS INQUEBRANTABLES DE COHERENCIA:
 3. Responde siempre en formato Markdown limpio y estilizado.
 
 PROTOCOLO AGENTIC (INTERCEPCIÓN DE COMANDOS):
-- Si César te pide información que requiera datos en tiempo real, noticias del día, clima actual, eventos recientes o verificación de hechos reales, DEBES responder ÚNICAMENTE con este formato JSON exacto:
+• Si César te pide información que requiera datos en tiempo real, noticias del día, clima actual, eventos recientes o verificación de hechos reales, DEBES responder ÚNICAMENTE con este formato JSON exacto:
 {"tool": "web_search", "query": "tu término de búsqueda aquí"}
 
-- Si César te pide abrir una aplicación móvil en su dispositivo (ej: whatsapp, spotify, facebook, youtube), DEBES responder ÚNICAMENTE con este bloque JSON exacto:
+• Si César te pide abrir una aplicación móvil en su dispositivo (ej: whatsapp, spotify, facebook, youtube), DEBES responder ÚNICAMENTE con este bloque JSON exacto:
 {"tool": "open_app", "appName": "nombre_de_la_app"}
 
 No agregues saludos ni explicaciones previas ni posteriores si vas a invocar una herramienta JSON. Sé directo.`
 };
 
 /* ==========================================================================
-   🚀 HEALTH ENDPOINT
-   ========================================================================== */
+🚀 HEALTH ENDPOINTS
+========================================================================== */
+app.get("/health", (req, res) => res.status(200).send("Xenia Server Active"));
+
 app.get("/", (req, res) => {
   res.json({ status: "Xenia AGENTIC PRO 🚀 activo" });
 });
 
 /* ==========================================================================
-   🧠 CHAT ORQUESTADOR DE AGENTES (STREAMING REAL CON INYECCIÓN TEMPORAL)
-   ========================================================================== */
+🧠 CHAT ORQUESTADOR DE AGENTES (INTEGRACIÓN IA REAL PARA PRODUCCIÓN)
+========================================================================== */
 app.post("/chat", async (req, res) => {
   try {
     const { messages } = req.body;
@@ -109,98 +111,116 @@ app.post("/chat", async (req, res) => {
       content: `${SYSTEM_PROMPT.content}
 
 [CONTEXTO TEMPORAL CRÍTICO]:
-- La fecha y hora actual real en el entorno del usuario es: ${mxDate}.
-- Si César te pregunta la hora o el día, respóndele DIRECTAMENTE usando estos datos. No uses la herramienta web_search para el tiempo actual.
+• La fecha y hora actual real en el entorno del usuario es: ${mxDate}.
+• Si César te pregunta la hora o el día, respóndele DIRECTAMENTE usando estos datos. No uses la herramienta web_search para el tiempo actual.
 
 [REGLA DE VERIFICACIÓN]:
-- Si te pregunta por autores de canciones, datos históricos o eventos donde dudes un 1% de la respuesta, estás OBLIGADO a usar la herramienta {"tool": "web_search", "query": "..."} para no alucinar.`
+• Si te pregunta por autores de canciones, datos históricos o eventos donde dudes un 1% de la respuesta, estás OBLIGADO a usar la herramienta {"tool": "web_search", "query": "..."} para no alucinar.`
     };
 
     const finalMessages = [ENHANCED_SYSTEM_PROMPT, ...cleanHistory];
 
-    // ⚠️ NOTA: Aquí va toda tu lógica de Groq y streaming que se cortó en tu mensaje
-    // Asegúrate de pegar esa sección aquí con cuidado para no romper las llaves.
+    // 🔥 CONEXIÓN COGNITIVA COMERCIAL (Groq API Endpoint Cloud)
+    // Asegúrate de tener tu GROQ_API_KEY en las variables de entorno de Render
+    const responseIA = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile", // Modelo de alta velocidad comercial
+        messages: finalMessages,
+        temperature: 0.3
+      })
+    });
 
-    res.end();
+    if (!responseIA.ok) {
+      const errText = await responseIA.text();
+      throw new Error(`Groq_API_Error: ${errText}`);
+    }
+
+    const aiData = await responseIA.json();
+    const replyText = aiData.choices[0]?.message?.content || "No se pudo generar una sinapsis limpia.";
+
+    // Intercepción inteligente por si requiere búsquedas web directas
+    if (replyText.includes("web_search")) {
+       try {
+         const jsonCmd = JSON.parse(replyText.trim());
+         const searchData = await performWebSearch(jsonCmd.query);
+         
+         // Inyección de los datos encontrados en la red para una segunda respuesta fluida
+         const finalContextFetch = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "llama-3.3-70b-versatile",
+              messages: [...finalMessages, { role: "system", content: `[DATOS EN TIEMPO REAL RECOLECTADOS]: ${JSON.stringify(searchData)}` }]
+            })
+         });
+         const finalJsonData = await finalContextFetch.json();
+         return res.status(200).json({ reply: finalJsonData.choices[0].message.content });
+       } catch (e) {
+         // Si falla el parseo, envía el JSON puro para que la app lo maneje
+         return res.status(200).json({ reply: replyText });
+       }
+    }
+
+    // ✅ ENVIAR RESPUESTA FINAL EN JSON QUE TU APP SÍ PUEDE LEER
+    res.status(200).json({ reply: replyText });
+
   } catch (err) {
     console.error("Fallo crítico en el enrutador /chat:", err);
-    res.end();
+    res.status(500).json({ error: "Fallo crítico en el núcleo cognitivo", details: err.message });
   }
 });
 
 /* ==========================================================================
-   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Proxy de Alta Disponibilidad)
-   ========================================================================== */
+🔍 MOTOR DE BÚSQUEDA ROBUSTO (youtube-sr nativo optimizado)
+========================================================================== */
 app.get('/search', async (req, res) => {
-    const query = req.query.q;
-    if (!query) {
-        return res.status(400).json({ error: 'Falta el parámetro de búsqueda q' });
-    }
-
-    try {
-        const cleanQuery = encodeURIComponent(query);
-        // Consolidamos la búsqueda usando el buscador móvil de YouTube libre de bloqueos pesados
-        const response = await fetch(`https://www.youtube.com/results?search_query=${cleanQuery}&sp=EgIQAQ%253D%253D`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-
-        const html = await response.text();
-        
-        // Expresión regular de alto rendimiento para capturar IDs y Títulos directamente
-        const regex = /"videoRenderer":\{"videoId":"([^"]+)","thumbnail":\{"thumbnails":\[\{"url":"([^"]+)"/g;
-        const titleRegex = /"title":\{"runs":\[\{"text":"([^"]+)"\}\]/;
-        const ownerRegex = /"ownerText":\{"runs":\[\{"text":"([^"]+)"\}\]/;
-
-        const videos = [];
-        let match;
-        let p = 0;
-
-        // Dividimos el HTML por bloques de video para no mezclar títulos
-        const blocks = html.split('"videoRenderer":{');
-        
-        // Nos saltamos el primer bloque que es basura pre-renderizada
-        for (let i = 1; i < blocks.length && videos.length < 15; i++) {
-            const block = blocks[i];
-            
-            const idMatch = block.match(/"videoId":"([^"]+)"/);
-            const titleMatch = block.match(/"title":\{"runs":\[\{"text":"([^"]+)"\}\]/);
-            const artistMatch = block.match(/"longBylineText":\{"runs":\[\{"text":"([^"]+)"\}\]/) || block.match(/"ownerText":\{"runs":\[\{"text":"([^"]+)"\}\]/);
-            const thumbMatch = block.match(/"url":"([^"]+)"/);
-
-            if (idMatch && titleMatch) {
-                const id = idMatch[1];
-                // Limpiamos caracteres extraños que puedan romper el JSON
-                const title = titleMatch[1].replace(/\\u0026/g, '&');
-                const artist = artistMatch ? artistMatch[1].replace(/\\u0026/g, '&') : "YouTube Artist";
-                const cover = thumbMatch ? thumbMatch[1] : `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
-
-                videos.push({
-                    id: id,
-                    title: title,
-                    artist: artist,
-                    cover: cover
-                });
-            }
-        }
-
-        // Devolvemos la estructura limpia que la app espera recibir
-        res.json({ videos: videos });
-
-    } catch (error) {
-        console.error('Fallo en módulo de música:', error);
-        res.status(500).json({ videos: [], error: 'Servicio de búsqueda temporalmente no disponible' });
-    }
+  const query = req.query.q;
+  if (!query) return res.status(400).json({ error: 'Falta parámetro q' });
+  try {
+    const searchResults = await YouTube.search(query, { limit: 15, type: 'video' });
+    const videos = searchResults.map(v => ({
+      id: v.id,
+      title: v.title,
+      artist: v.channel ? v.channel.name : "YouTube Artist",
+      cover: v.thumbnail ? v.thumbnail.url : `https://img.youtube.com/vi/${v.id}/mqdefault.jpg`
+    }));
+    res.json({ videos: videos });
+  } catch (error) {
+    console.error("Error en búsqueda:", error);
+    res.status(500).json({ videos: [], error: 'Servicio no disponible' });
+  }
 });
 
+/* ==========================================================================
+📥 MOTOR DE DESCARGA DE AUDIO
+========================================================================== */
+app.get('/download', async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).send('Falta ID');
 
+  try {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
 
-
+    res.redirect(format.url);
+  } catch (err) {
+    console.error('Error de descarga:', err);
+    res.status(500).send('Error al procesar audio');
+  }
+});
 
 /* ============================================================================
-   📥 MOTOR DE AUDIO ULTRA-PREMIUM: MUSIC PRO X (Arquitectura Nivel Mundial)
-   ============================================================================ */
+📥 MOTOR DE AUDIO ULTRA-PREMIUM: MUSIC PRO X (Arquitectura Nivel Mundial)
+============================================================================ */
 app.get('/music/home', (req, res) => {
   const currentHour = new Date().getHours();
   let dynamicGreeting = "Buenas noches";
@@ -349,8 +369,8 @@ app.get('/music/home', (req, res) => {
 });
 
 /* ==========================================================================
-   🚀 INICIALIZACIÓN DE SERVIDOR INDUSTRIAL
-   ========================================================================== */
+🚀 INICIALIZACIÓN DE SERVIDOR INDUSTRIAL
+========================================================================== */
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`|===================================================|`);
   console.log(`| 🚀 MOTOR COGNITIVO XENIA PRO CORRIENDO EN PORT ${PORT} |`);
