@@ -129,9 +129,8 @@ app.post("/chat", async (req, res) => {
 });
 
 /* ==========================================================================
-   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Anti-Bloqueos Render)
+   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Proxy Anti-Bloqueos Render)
    ========================================================================== */
-// 🔥 2. Aquí va la ruta nueva de búsqueda, limpia y devolviendo siempre JSON
 app.get("/search", async (req, res) => {
   try {
     const query = req.query.q;
@@ -139,20 +138,34 @@ app.get("/search", async (req, res) => {
       return res.status(400).json({ error: "Falta el parámetro de búsqueda" });
     }
 
-    console.log(`🎵 [XENIA ENGINE] Buscando música para: "${query}"...`);
+    console.log(`🎵 [XENIA ENGINE] Buscando vía Proxy: "${query}"...`);
 
-    const videos = await YouTube.search(query, { limit: 5, type: "video" });
+    // Usamos Piped API (un proxy libre) para saltar el bloqueo de IP de Render
+    const response = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all`);
     
-    if (!videos || videos.length === 0) {
+    if (!response.ok) {
+      throw new Error("El proxy de búsqueda está saturado");
+    }
+
+    const data = await response.json();
+    
+    // Filtramos solo los resultados que sean videos musicales
+    const videos = (data.items || []).filter(item => item.type === "stream").slice(0, 5);
+
+    if (videos.length === 0) {
       return res.json({ videos: [] });
     }
 
-    const formattedVideos = videos.map(v => ({
-      id: v.id,
-      title: v.title,
-      // API conversora directa para que el reproductor no sufra
-      url: `https://convert.qubby.dev/download?id=${v.id}` 
-    }));
+    const formattedVideos = videos.map(v => {
+      // La API devuelve la URL como "/watch?v=ID", extraemos solo el ID:
+      const videoId = v.url.replace("/watch?v=", "");
+      return {
+        id: videoId,
+        title: v.title,
+        // Tu puente de conversión intacto para el reproductor
+        url: `https://convert.qubby.dev/download?id=${videoId}`
+      };
+    });
 
     res.setHeader('Content-Type', 'application/json');
     return res.json({ videos: formattedVideos });
@@ -162,6 +175,7 @@ app.get("/search", async (req, res) => {
     return res.status(500).json({ videos: [], error: error.message });
   }
 });
+
 
 /* ============================================================================
    📥 MOTOR DE AUDIO ULTRA-PREMIUM: MUSIC PRO X (Arquitectura Nivel Mundial)
