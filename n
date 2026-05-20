@@ -1,0 +1,47 @@
+import { useChatStore } from "../store/chatStore";
+
+const URL = "https://xenia-backend-r8if.onrender.com/chat";
+
+export const sendMessageToAI = async (messages: any[]) => {
+  const { updateMessage, setLoading } = useChatStore.getState();
+
+  const assistantId = `a-${Date.now()}`;
+  let buffer = "";
+
+  setLoading(true);
+
+  try {
+    const res = await fetch(URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messages }),
+    });
+
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) return;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // 🔥 THROTTLE (CLAVE)
+      if (buffer.length % 20 === 0) {
+        updateMessage(assistantId, buffer);
+      }
+    }
+
+    updateMessage(assistantId, buffer);
+  } catch (e) {
+    updateMessage(assistantId, "Error de conexión");
+  } finally {
+    setLoading(false);
+  }
+
+  return assistantId;
+};

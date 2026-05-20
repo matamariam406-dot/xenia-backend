@@ -1,0 +1,2 @@
+onChunk(current + "▌");
+onChunk(current);
