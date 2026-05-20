@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import fetch from "node-fetch";
+// 🔥 1. Importación correcta de la librería usando ES Modules
+import YouTube from "youtube-sr"; 
 
 dotenv.config();
 
@@ -31,7 +33,6 @@ async function performWebSearch(query) {
     const results = [];
     const blocks = html.split('class="result__body"');
 
-    // Extraemos los 4 resultados más limpios y con mayor peso de información
     for (let i = 1; i < Math.min(blocks.length, 5); i++) {
       const block = blocks[i];
       const titleMatch = block.match(/class="result__title"[^>]*>([\s\S]*?)<\/a>/);
@@ -101,15 +102,14 @@ app.post("/chat", async (req, res) => {
       .filter(m => m?.role && m?.content)
       .map(({ role, content }) => ({ role, content }));
 
-    // 🔥 PARCHE COGNITIVO: Inyección de Tiempo Real Absoluto y Control de certezas
     const mxDate = new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" });
-    
+
     const ENHANCED_SYSTEM_PROMPT = {
       role: "system",
       content: `${SYSTEM_PROMPT.content}
-      
+
 [CONTEXTO TEMPORAL CRÍTICO]:
-- La fecha y hora actual real en el entorno del usuario es: ${mxDate}. 
+- La fecha y hora actual real en el entorno del usuario es: ${mxDate}.
 - Si César te pregunta la hora o el día, respóndele DIRECTAMENTE usando estos datos. No uses la herramienta web_search para el tiempo actual.
 
 [REGLA DE VERIFICACIÓN]:
@@ -118,63 +118,48 @@ app.post("/chat", async (req, res) => {
 
     const finalMessages = [ENHANCED_SYSTEM_PROMPT, ...cleanHistory];
 
-    // ... (Todo el resto de tu código de Groq y streaming se queda exactamente igual)
-
-                            role: "system",
-                            content: `[SISTEMA DE NAVEGACIÓN INTEGRADO] Información verídica extraída de internet al instante sobre "${parsedTool.query}":\n${JSON.stringify(searchResults)}`
-                          }
-                        ],
-                        temperature: 0.4,
-                        stream: true,
-                      })
-                    });
-
-                    if (secondaryResponse.ok && secondaryResponse.body) {
-                      for await (const secChunk of secondaryResponse.body) {
-                        const secText = secChunk.toString();
-                        for (const secLine of secText.split("\n")) {
-                          if (!secLine.startsWith("data:")) continue;
-                          const secJson = secLine.replace("data: ", "").trim();
-                          if (secJson === "[DONE]") continue;
-                          try {
-                            const secParsed = JSON.parse(secJson);
-                            const secToken = secParsed?.choices?.[0]?.delta?.content;
-                            if (secToken) {
-                              res.write(`data: ${JSON.stringify({ token: secToken })}\n\n`);
-                            }
-                          } catch {}
-                        }
-                      }
-                    }
-                  }
-
-                  else if (parsedTool.tool === "open_app") {
-                    const app = parsedTool.appName.toLowerCase();
-                    res.write(`data: ${JSON.stringify({ token: `🚀 **Abriendo la aplicación ${app}...**` })}\n\n`);
-                    res.write(`data: ${JSON.stringify({ action: "open_app", appName: app })}\n\n`);
-                  }
-                  break;
-                }
-              } catch (e) {}
-            } else if (trimmedBuffer.length > 300) {
-              streamStarted = true;
-              res.write(`data: ${JSON.stringify({ token: toolBuffer })}\n\n`);
-            }
-          } else {
-            streamStarted = true;
-            res.write(`data: ${JSON.stringify({ token: toolBuffer })}\n\n`);
-          }
-        } else {
-          res.write(`data: ${JSON.stringify({ token })}\n\n`);
-        }
-      }
-      if (isToolCall) break;
-    }
+    // ⚠️ NOTA: Aquí va toda tu lógica de Groq y streaming que se cortó en tu mensaje
+    // Asegúrate de pegar esa sección aquí con cuidado para no romper las llaves.
 
     res.end();
   } catch (err) {
     console.error("Fallo crítico en el enrutador /chat:", err);
     res.end();
+  }
+});
+
+/* ==========================================================================
+   🎵 MOTOR DE BÚSQUEDA DE MÚSICA (Anti-Bloqueos Render)
+   ========================================================================== */
+// 🔥 2. Aquí va la ruta nueva de búsqueda, limpia y devolviendo siempre JSON
+app.get("/search", async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query) {
+      return res.status(400).json({ error: "Falta el parámetro de búsqueda" });
+    }
+
+    console.log(`🎵 [XENIA ENGINE] Buscando música para: "${query}"...`);
+
+    const videos = await YouTube.search(query, { limit: 5, type: "video" });
+    
+    if (!videos || videos.length === 0) {
+      return res.json({ videos: [] });
+    }
+
+    const formattedVideos = videos.map(v => ({
+      id: v.id,
+      title: v.title,
+      // API conversora directa para que el reproductor no sufra
+      url: `https://convert.qubby.dev/download?id=${v.id}` 
+    }));
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.json({ videos: formattedVideos });
+
+  } catch (error) {
+    console.error("❌ Fallo en módulo de música:", error);
+    return res.status(500).json({ videos: [], error: error.message });
   }
 });
 
@@ -199,7 +184,7 @@ app.get('/music/home', (req, res) => {
         systemStatus: "OPTIMIZED",
       },
       pagination: {
-        nextCursor: "eyJhbGciOiJIUzI1NiIsInR5cCI6...", 
+        nextCursor: "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
         hasMore: true
       }
     },
@@ -207,18 +192,18 @@ app.get('/music/home', (req, res) => {
       sections: [
         {
           id: "sec-01-hero",
-          type: "HERO_CAROUSEL", 
+          type: "HERO_CAROUSEL",
           title: "⚡ Terminal & Scripts",
           items: [
             {
               id: "pl-kali-focus",
               title: "Modo Root: NetHunter",
               description: "Frecuencias lo-fi profundas para automatización y sesiones de código en consola.",
-              brandColor: "#00ff00", 
+              brandColor: "#00ff00",
               artwork: {
-                small: "[https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=150](https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=150)",
-                large: "[https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600](https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600)",
-                canvas_video: null 
+                small: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=150",
+                large: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600",
+                canvas_video: null
               },
               tracks: [
                 {
@@ -227,8 +212,8 @@ app.get('/music/home', (req, res) => {
                   artist: "Xenia Neural Core",
                   album: "Scripting Sessions",
                   stream: {
-                    hls: "[https://streaming.example.com/hls/selenium/master.m3u8](https://streaming.example.com/hls/selenium/master.m3u8)", 
-                    fallback_mp3: "[https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3](https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3)",
+                    hls: "https://streaming.example.com/hls/selenium/master.m3u8",
+                    fallback_mp3: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
                     quality: "LOSSLESS_HI_RES",
                     spatialAudio: true
                   },
@@ -237,11 +222,9 @@ app.get('/music/home', (req, res) => {
                     bpm: 95,
                     key: "C_MINOR",
                     isExplicit: false,
-                    hasSyncedLyrics: true 
+                    hasSyncedLyrics: true
                   },
-                  ui: {
-                    primaryColor: "#0a192f"
-                  }
+                  ui: { primaryColor: "#0a192f" }
                 }
               ]
             }
@@ -258,8 +241,8 @@ app.get('/music/home', (req, res) => {
               description: "Flujo de gas constante. Metal pesado y ritmos densos para la maquinaria.",
               brandColor: "#ff4500",
               artwork: {
-                small: "[https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=150](https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=150)",
-                large: "[https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600](https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600)"
+                small: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=150",
+                large: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600"
               },
               tracks: [
                 {
@@ -268,8 +251,8 @@ app.get('/music/home', (req, res) => {
                   artist: "Industrial Forge",
                   album: "Warehouse Echoes",
                   stream: {
-                    hls: "[https://streaming.example.com/hls/tungsten/master.m3u8](https://streaming.example.com/hls/tungsten/master.m3u8)",
-                    fallback_mp3: "[https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3](https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3)",
+                    hls: "https://streaming.example.com/hls/tungsten/master.m3u8",
+                    fallback_mp3: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
                     quality: "MASTER",
                     spatialAudio: false
                   },
@@ -280,9 +263,7 @@ app.get('/music/home', (req, res) => {
                     isExplicit: true,
                     hasSyncedLyrics: false
                   },
-                  ui: {
-                    primaryColor: "#1a0b0b"
-                  }
+                  ui: { primaryColor: "#1a0b0b" }
                 }
               ]
             }
@@ -299,8 +280,8 @@ app.get('/music/home', (req, res) => {
               description: "Atmósferas frías y graves profundos para el trayecto nocturno.",
               brandColor: "#1e3a8a",
               artwork: {
-                small: "[https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=150](https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=150)",
-                large: "[https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600](https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600)"
+                small: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=150",
+                large: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600"
               },
               tracks: [
                 {
@@ -309,8 +290,8 @@ app.get('/music/home', (req, res) => {
                   artist: "Valle Sur",
                   album: "Rutas",
                   stream: {
-                    hls: "[https://streaming.example.com/hls/sierra/master.m3u8](https://streaming.example.com/hls/sierra/master.m3u8)",
-                    fallback_mp3: "[https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3](https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3)",
+                    hls: "https://streaming.example.com/hls/sierra/master.m3u8",
+                    fallback_mp3: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
                     quality: "HIGH",
                     spatialAudio: true
                   },
@@ -321,9 +302,7 @@ app.get('/music/home', (req, res) => {
                     isExplicit: false,
                     hasSyncedLyrics: true
                   },
-                  ui: {
-                    primaryColor: "#051024"
-                  }
+                  ui: { primaryColor: "#051024" }
                 }
               ]
             }
