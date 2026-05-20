@@ -134,37 +134,39 @@ app.post("/chat", async (req, res) => {
 app.get("/search", async (req, res) => {
   try {
     const query = req.query.q;
-    if (!query) {
-      return res.status(400).json({ error: "Falta el parámetro de búsqueda" });
-    }
+    if (!query) return res.status(400).json({ videos: [], error: "No query" });
 
-    console.log(`🎵 [XENIA ENGINE] Buscando vía API estable: "${query}"...`);
+    console.log(`🔍 [XENIA ENGINE] Búsqueda profunda para: "${query}"...`);
 
-    // Usamos esta API que es más confiable y no se satura tan fácil
-    const response = await fetch(`https://api.yt-api.org/search?q=${encodeURIComponent(query)}&type=video`);
+    // Usamos DuckDuckGo para buscar videos de YouTube sin bloqueos de API
+    const response = await fetch(`https://html.duckduckgo.com/html/?q=site:youtube.com+${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+
+    const html = await response.text();
+    const videos = [];
     
-    if (!response.ok) {
-      throw new Error("Servicio de búsqueda temporalmente no disponible");
-    }
-
-    const data = await response.json();
+    // Extraemos resultados del HTML
+    const regex = /href="https:\/\/www\.youtube\.com\/watch\?v=([^"]+)"[^>]*>([^<]+)/g;
+    let match;
     
-    // Mapeo seguro basándonos en la estructura común de respuestas
-    const items = data.data || [];
-    const formattedVideos = items.slice(0, 5).map(v => ({
-      id: v.videoId,
-      title: v.title,
-      url: `https://convert.qubby.dev/download?id=${v.videoId}`
-    }));
+    while ((match = regex.exec(html)) !== null && videos.length < 5) {
+      videos.push({
+        id: match[1],
+        title: match[2].replace(/&quot;/g, '"'),
+        url: `https://convert.qubby.dev/download?id=${match[1]}`
+      });
+    }
 
     res.setHeader('Content-Type', 'application/json');
-    return res.json({ videos: formattedVideos });
+    return res.json({ videos });
 
   } catch (error) {
-    console.error("❌ Fallo en módulo de música:", error);
-    return res.status(500).json({ videos: [], error: error.message });
+    console.error("❌ Fallo en búsqueda:", error);
+    return res.status(500).json({ videos: [], error: "Fallo interno" });
   }
 });
+
 
 
 
