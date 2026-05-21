@@ -180,65 +180,73 @@ app.post("/chat", async (req, res) => {
 });
 
 /* ==========================================================================
-🔍 MOTOR DE BÚSQUEDA ROBUSTO (youtube-sr con extractor de contingencia DDG)
+🔍 MOTOR DE BÚSQUEDA ANTI-BLOQUEO (Red de Proxies Piped)
 ========================================================================== */
 app.get('/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta parámetro q' });
 
   try {
-    console.log(`🎵 [SONIC HD] Buscando frecuencias para: "${query}" con youtube-sr...`);
-    
-    // Llamada segura a la función extraída al inicio del archivo
-    if (typeof searchYouTube !== 'function') {
-      throw new Error("La función de búsqueda de youtube-sr no se inicializó correctamente.");
+    console.log(`🎵 [SONIC HD] Bypassing YouTube para: "${query}"...`);
+
+    // Red de servidores proxy antibloqueo (Redundancia táctica)
+    const proxyNodes = [
+      "https://pipedapi.kavin.rocks",
+      "https://pipedapi.smnz.de",
+      "https://de-api-piped.mint.lgbt",
+      "https://pipedapi.moomoo.me"
+    ];
+
+    let results = null;
+
+    // Intentamos golpear cada nodo hasta que uno nos dé la música al instante
+    for (const node of proxyNodes) {
+      try {
+        console.log(`Intentando penetrar vía: ${node}...`);
+        const response = await fetch(`${node}/search?q=${encodeURIComponent(query)}&filter=all`, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+            timeout: 4000 // Si un nodo tarda más de 4s, saltamos al siguiente
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.items && data.items.length > 0) {
+            results = data.items;
+            console.log(`✅ ¡Conexión exitosa en ${node}!`);
+            break; // Rompemos el ciclo, ya tenemos los datos
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ Nodo ${node} no respondió. Cambiando de ruta...`);
+      }
     }
 
-    const searchResults = await searchYouTube(query, { limit: 15, type: 'video' });
-
-    if (!searchResults || searchResults.length === 0) {
-      throw new Error("IP de Render bloqueada temporalmente por YouTube.");
+    if (!results) {
+      throw new Error("Todos los nodos proxy fueron rechazados.");
     }
 
-    const videos = searchResults.map(v => ({
-      id: v.id,
-      title: v.title,
-      artist: v.channel ? v.channel.name : "YouTube Artist",
-      cover: v.thumbnail ? v.thumbnail.url : `https://img.youtube.com/vi/${v.id}/mqdefault.jpg`
-    }));
+    // Filtramos solo los que sean videos/canciones y armamos el JSON perfecto para tu App
+    const videos = results
+      .filter(v => v.url && v.url.includes('/watch?v='))
+      .slice(0, 15)
+      .map(v => {
+        const videoId = v.url.split('v=')[1].split('&')[0]; // Extracción quirúrgica del ID
+        return {
+          id: videoId,
+          title: v.title,
+          artist: v.uploaderName || "Desconocido",
+          cover: v.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        };
+      });
 
     return res.json({ videos: videos });
 
   } catch (error) {
-    console.warn("⚠️ [CONCURRENCIA] Fallo principal. Desplegando rastreador alterno DuckDuckGo...", error.message);
-    try {
-      const webResults = await performWebSearch(`${query} site:youtube.com/watch`);
-      const fallbackVideos = [];
-
-      for (const item of webResults) {
-        const match = item.url.match(/(?:v=|\/v\/|embed\/|youtu\.be\/)([^&\?#]+)/);
-        if (match && match[1]) {
-          const id = match[1];
-          fallbackVideos.push({
-            id: id,
-            title: item.title.replace(" - YouTube", ""),
-            artist: "Sonic HD Core",
-            cover: `https://img.youtube.com/vi/${id}/mqdefault.jpg`
-          });
-        }
-      }
-
-      if (fallbackVideos.length > 0) {
-        console.log(`✅ [SONIC HD] Extracción exitosa de ${fallbackVideos.length} pistas alternativas.`);
-        return res.json({ videos: fallbackVideos });
-      }
-    } catch (fallbackErr) {
-      console.error("Fallo absoluto en todos los núcleos de búsqueda de audio:", fallbackErr);
-    }
-
-    res.json({ videos: [], error: "Sincronización temporalmente limitada." });
+    console.error("❌ Fallo crítico en el motor proxy:", error.message);
+    res.json({ videos: [], error: "No se pudo saltar la seguridad de YouTube." });
   }
 });
+
 
 /* ==========================================================================
 📥 MOTOR DE DESCARGA DE AUDIO
