@@ -35,7 +35,7 @@ export default function AuroraXeniaEngineV5({ onVolver }: PlayerProps) {
         
         // Opción nativa si se usa un entorno embebido o ejecución mediante Termux-API local:
         // En entornos integrados, este fetch despierta el socket local o levanta el hilo en segundo plano
-        await fetch('http://127.0.0.1:5000/api/search?q=ping').catch(() => {
+        await fetch('https://xenia-backend-r8if.onrender.com) => {
           console.log("Levantando servicio secundario de raspado automático...");
           // Aquí el hilo nativo de la app se asegura de mantener vivo el proceso binario de python
         });
@@ -44,8 +44,19 @@ export default function AuroraXeniaEngineV5({ onVolver }: PlayerProps) {
       }
     };
 
-    arrancarServidorAutonomo();
-  }, []);
+        const arrancarServidorAutonomo = async () => {
+      try {
+        console.log("AuroraXenia Core: Desplegando pasarela de audio interna...");
+        
+        // Pon aquí tu NUEVA URL verde de Render
+        await fetch('https://xenia-backend-r8if.onrender.com');
+        console.log("Levantando servicio secundario de raspado automático...");
+        
+      } catch (error) {
+        console.warn("Aviso Core Engine: Esperando enlace del socket binario local.");
+      }
+    };
+
 
   // Consumir el cerebro global de Spotify (Cero retrasos al cambiar Tabs)
   const {
