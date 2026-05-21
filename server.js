@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import fetch from "node-fetch";
-import youtubeSr from "youtube-sr"; 
+import ytSearch from "yt-search"; // 🔥 Cambiado por el nuevo motor blindado
 import ytdl from "@distube/ytdl-core";
 
 // 🔥 Extractor seguro para evitar el error "is not a function" causado por módulos ES6/CommonJS
@@ -180,72 +180,39 @@ app.post("/chat", async (req, res) => {
 });
 
 /* ==========================================================================
-🔍 MOTOR DE BÚSQUEDA ANTI-BLOQUEO (Red de Proxies Piped)
+🔍 MOTOR DE BÚSQUEDA BLINDADO (yt-search)
 ========================================================================== */
 app.get('/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta parámetro q' });
 
   try {
-    console.log(`🎵 [SONIC HD] Bypassing YouTube para: "${query}"...`);
+    console.log(`🎵 [SONIC HD] Motor yt-search activado para: "${query}"...`);
+    
+    // Búsqueda directa sin depender de APIs de terceros ni proxies inestables
+    const r = await ytSearch(query);
+    
+    const videos = r.videos.slice(0, 15).map(v => ({
+      id: v.videoId, // yt-search entrega el ID limpio directo
+      title: v.title,
+      artist: v.author ? v.author.name : "Desconocido",
+      cover: v.thumbnail
+    }));
 
-    // Red de servidores proxy antibloqueo (Redundancia táctica)
-    const proxyNodes = [
-      "https://pipedapi.kavin.rocks",
-      "https://pipedapi.smnz.de",
-      "https://de-api-piped.mint.lgbt",
-      "https://pipedapi.moomoo.me"
-    ];
-
-    let results = null;
-
-    // Intentamos golpear cada nodo hasta que uno nos dé la música al instante
-    for (const node of proxyNodes) {
-      try {
-        console.log(`Intentando penetrar vía: ${node}...`);
-        const response = await fetch(`${node}/search?q=${encodeURIComponent(query)}&filter=all`, {
-            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-            timeout: 4000 // Si un nodo tarda más de 4s, saltamos al siguiente
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.items && data.items.length > 0) {
-            results = data.items;
-            console.log(`✅ ¡Conexión exitosa en ${node}!`);
-            break; // Rompemos el ciclo, ya tenemos los datos
-          }
-        }
-      } catch (err) {
-        console.warn(`⚠️ Nodo ${node} no respondió. Cambiando de ruta...`);
-      }
+    if (!videos || videos.length === 0) {
+      throw new Error("El motor no devolvió resultados.");
     }
 
-    if (!results) {
-      throw new Error("Todos los nodos proxy fueron rechazados.");
-    }
-
-    // Filtramos solo los que sean videos/canciones y armamos el JSON perfecto para tu App
-    const videos = results
-      .filter(v => v.url && v.url.includes('/watch?v='))
-      .slice(0, 15)
-      .map(v => {
-        const videoId = v.url.split('v=')[1].split('&')[0]; // Extracción quirúrgica del ID
-        return {
-          id: videoId,
-          title: v.title,
-          artist: v.uploaderName || "Desconocido",
-          cover: v.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
-        };
-      });
-
+    console.log(`✅ [SONIC HD] Éxito: ${videos.length} pistas encontradas.`);
     return res.json({ videos: videos });
 
   } catch (error) {
-    console.error("❌ Fallo crítico en el motor proxy:", error.message);
-    res.json({ videos: [], error: "No se pudo saltar la seguridad de YouTube." });
+    console.error("❌ Fallo crítico en yt-search:", error.message);
+    // Respuesta de seguridad para no romper la app
+    res.json({ videos: [], error: "Espectro temporalmente sin señal." });
   }
 });
+
 
 
 /* ==========================================================================
