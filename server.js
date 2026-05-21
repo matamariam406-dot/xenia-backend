@@ -219,20 +219,34 @@ app.get('/search', async (req, res) => {
 ========================================================================== */
 app.get('/download', async (req, res) => {
   const videoId = req.query.id;
-  if (!videoId) return res.status(400).send('Falta ID');
+  if (!videoId) return res.status(400).send("Falta ID");
 
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await ytdl.getInfo(url);
-    const format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+    
+    // Opciones para evitar el error 429
+    const options = {
+      quality: 'highestaudio',
+      filter: 'audioonly',
+      highWaterMark: 1 << 25, // Buffer más grande
+    };
 
-    res.redirect(format.url);
-  } catch (err) {
-    console.error('Error de descarga:', err);
-    res.status(500).send('Error al procesar audio');
+    // Usamos el agente de ytdl-core con reintentos automáticos
+    const stream = ytdl(url, options);
+
+    res.header('Content-Type', 'audio/mpeg');
+    stream.pipe(res);
+
+    stream.on('error', (err) => {
+      console.error("❌ Error en stream:", err);
+      if (!res.headersSent) res.status(500).send("Error de streaming");
+    });
+
+  } catch (error) {
+    console.error("❌ Error crítico de descarga:", error);
+    res.status(500).send("Error interno");
   }
 });
-
 /* ============================================================================
 📥 MOTOR DE AUDIO ULTRA-PREMIUM: MUSIC PRO X (Arquitectura Nivel Mundial)
 ============================================================================ */
