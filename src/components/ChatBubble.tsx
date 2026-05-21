@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, memo } from "react";
-import { View, Text, Animated } from "react-native";
+import { View, Text, Animated, Platform } from "react-native";
 
 type Msg = {
   id: string;
@@ -13,84 +13,77 @@ type Props = {
 
 export const ChatBubble = memo(({ item }: Props) => {
   const isUser = item.role === "user";
+  const textContent = item?.content || "";
 
-  // =========================
-  // ✨ ANIMACIONES BASE
-  // =========================
+  // ⚡ Animaciones de entrada optimizadas
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(10)).current;
+  const translateY = useRef(new Animated.Value(8)).current;
+  
+  // 👁️ Cursor animado nativamente (0 Re-renders en JS)
+  const cursorOpacity = useRef(new Animated.Value(1)).current;
 
-  // =========================
-  // 🧠 STREAMING LOCAL STATE
-  // =========================
-  const [displayedText, setDisplayedText] = useState("");
-  const [cursorVisible, setCursorVisible] = useState(true);
+  // 🧠 Estado de texto simplificado
+  const [displayedText, setDisplayedText] = useState(isUser ? textContent : "");
 
-  // =========================
-  // ✨ ENTRADA ANIMADA (SMOOTH)
-  // =========================
+  // Entrada Smooth
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 220,
-        useNativeDriver: true,
+        duration: 200,
+        useNativeDriver: Platform.OS !== "web",
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
+        duration: 200,
+        useNativeDriver: Platform.OS !== "web",
       }),
     ]).start();
   }, []);
 
-  // =========================
-  // 🧠 EFECTO TIPO CHATGPT (STREAMING VISUAL)
-  // =========================
-  useEffect(() => {
-    // USER no anima texto
-    if (isUser) {
-      setDisplayedText(item.content);
-      return;
-    }
-
-    let i = 0;
-    let cancelled = false;
-
-    const interval = setInterval(() => {
-      if (cancelled) return;
-
-      i++;
-
-      setDisplayedText(item.content.slice(0, i));
-
-      if (i >= item.content.length) {
-        clearInterval(interval);
-      }
-    }, 6); // ⚡ velocidad tipo ChatGPT real
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [item.content]);
-
-  // =========================
-  // ⚡ CURSOR PARPADEANTE
-  // =========================
+  // Streaming de texto inteligente de alta velocidad (Throttled)
   useEffect(() => {
     if (isUser) return;
 
-    const blink = setInterval(() => {
-      setCursorVisible((prev) => !prev);
-    }, 500);
+    let i = 0;
+    let isCancelled = false;
+    
+    // Velocidad adaptativa: letras agrupadas si el texto es masivo
+    const step = textContent.length > 200 ? 3 : 1; 
 
-    return () => clearInterval(blink);
+    const interval = setInterval(() => {
+      if (isCancelled) return;
+
+      i += step;
+      setDisplayedText(textContent.slice(0, i));
+
+      if (i >= textContent.length) {
+        setDisplayedText(textContent);
+        clearInterval(interval);
+      }
+    }, 20); // 20ms mantiene los 60fps reales en web y móvil
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [textContent]);
+
+  // Ciclo infinito del cursor por Hardware gráfico
+  useEffect(() => {
+    if (isUser) return;
+
+    const blinkAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(cursorOpacity, { toValue: 0, duration: 450, useNativeDriver: Platform.OS !== "web" }),
+        Animated.timing(cursorOpacity, { toValue: 1, duration: 450, useNativeDriver: Platform.OS !== "web" }),
+      ])
+    );
+    
+    blinkAnimation.start();
+    return () => blinkAnimation.stop();
   }, []);
 
-  // =========================
-  // 🎨 UI USER
-  // =========================
   if (isUser) {
     return (
       <Animated.View
@@ -99,28 +92,23 @@ export const ChatBubble = memo(({ item }: Props) => {
           transform: [{ translateY }],
           alignSelf: "flex-end",
           backgroundColor: "#2563eb",
-          padding: 14,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
           borderRadius: 20,
+          borderBottomRightRadius: 4,
           maxWidth: "85%",
-          marginVertical: 6,
+          marginVertical: 4,
         }}
       >
-        <Text
-          style={{
-            color: "#fff",
-            fontSize: 16,
-            fontWeight: "600",
-          }}
-        >
-          {item.content}
+        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "500" }}>
+          {displayedText}
         </Text>
       </Animated.View>
     );
   }
 
-  // =========================
-  // 🤖 UI ASSISTANT (CHATGPT STYLE)
-  // =========================
+  const isStreamingDone = displayedText === textContent;
+
   return (
     <Animated.View
       style={{
@@ -132,41 +120,36 @@ export const ChatBubble = memo(({ item }: Props) => {
         width: "100%",
       }}
     >
-      {/* 🤖 AVATAR */}
+      {/* Avatar Estilo Cyberpunk */}
       <View
         style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: "#3b82f6",
+          width: 32,
+          height: 32,
+          borderRadius: 10,
+          backgroundColor: "rgba(59, 130, 246, 0.15)",
+          borderWidth: 1,
+          borderColor: "rgba(59, 130, 246, 0.3)",
           justifyContent: "center",
           alignItems: "center",
-          marginRight: 10,
-          marginTop: 4,
+          marginRight: 12,
+          marginTop: 2,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "bold" }}>
-          X
-        </Text>
+        <Text style={{ color: "#3b82f6", fontSize: 13, fontWeight: "900" }}>X</Text>
       </View>
 
-      {/* 💬 TEXTO */}
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            color: "#e6edf3",
-            fontSize: 16,
-            lineHeight: 24,
-          }}
-        >
+      {/* Caja de Respuesta */}
+      <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.04)" }}>
+        <Text style={{ color: "#e2e8f0", fontSize: 15, lineHeight: 22 }}>
           {displayedText}
-          {!isUser &&
-          cursorVisible &&
-          displayedText !== item.content
-            ? "▋"
-            : ""}
+          {!isStreamingDone && (
+            <Animated.Text style={{ color: "#3b82f6", fontWeight: "900", opacity: cursorOpacity }}>
+              {" ▋"}
+            </Animated.Text>
+          )}
         </Text>
       </View>
     </Animated.View>
   );
 });
+
