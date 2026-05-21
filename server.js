@@ -3,8 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import fetch from "node-fetch";
-import YouTube from "youtube-sr";
-import ytdl from "@distube/ytdl-core"; // 🔥 Importación fija tipo módulo (eliminados los require de abajo)
+import youtubeSr from "youtube-sr"; 
+import ytdl from "@distube/ytdl-core";
+
+// 🔥 Extractor seguro para evitar el error "is not a function" causado por módulos ES6/CommonJS
+const searchYouTube = youtubeSr.search || youtubeSr.default?.search || youtubeSr;
 
 dotenv.config();
 
@@ -19,8 +22,8 @@ const MEMORY_FILE = "./memory.json";
 🔍 MOTOR AUTÓNOMO DE BÚSQUEDA WEB (Dependency-Free Scraper)
 ========================================================================== */
 async function performWebSearch(query) {
-  console.log(`🌐 [XENIA ENGINE] Investigando en la Web: "${query}"...`); 
-  try { 
+  console.log(`🌐 [XENIA ENGINE] Investigando en la Web: "${query}"...`);
+  try {
     const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -94,15 +97,19 @@ app.get("/", (req, res) => {
 ========================================================================== */
 app.post("/chat", async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, message, prompt } = req.body;
 
-    if (!Array.isArray(messages)) {
-      return res.status(400).json({ error: "messages inválido" });
+    // Normalización de entrada para soportar cualquier formato del frontend
+    let cleanHistory = [];
+    if (Array.isArray(messages)) {
+      cleanHistory = messages
+        .filter(m => m?.role && m?.content)
+        .map(({ role, content }) => ({ role, content }));
+    } else if (message || prompt) {
+      cleanHistory = [{ role: "user", content: message || prompt }];
+    } else {
+      return res.status(400).json({ error: "Formato de mensaje inválido" });
     }
-
-    const cleanHistory = messages
-      .filter(m => m?.role && m?.content)
-      .map(({ role, content }) => ({ role, content }));
 
     const mxDate = new Date().toLocaleString("es-MX", { timeZone: "America/Monterrey" });
 
@@ -120,8 +127,6 @@ app.post("/chat", async (req, res) => {
 
     const finalMessages = [ENHANCED_SYSTEM_PROMPT, ...cleanHistory];
 
-    // 🔥 CONEXIÓN COGNITIVA COMERCIAL (Groq API Endpoint Cloud)
-    // Asegúrate de tener tu GROQ_API_KEY en las variables de entorno de Render
     const responseIA = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -129,7 +134,7 @@ app.post("/chat", async (req, res) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Modelo de alta velocidad comercial
+        model: "llama-3.3-70b-versatile",
         messages: finalMessages,
         temperature: 0.3
       })
@@ -143,13 +148,11 @@ app.post("/chat", async (req, res) => {
     const aiData = await responseIA.json();
     const replyText = aiData.choices[0]?.message?.content || "No se pudo generar una sinapsis limpia.";
 
-    // Intercepción inteligente por si requiere búsquedas web directas
     if (replyText.includes("web_search")) {
        try {
          const jsonCmd = JSON.parse(replyText.trim());
          const searchData = await performWebSearch(jsonCmd.query);
-         
-         // Inyección de los datos encontrados en la red para una segunda respuesta fluida
+
          const finalContextFetch = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -164,12 +167,10 @@ app.post("/chat", async (req, res) => {
          const finalJsonData = await finalContextFetch.json();
          return res.status(200).json({ reply: finalJsonData.choices[0].message.content });
        } catch (e) {
-         // Si falla el parseo, envía el JSON puro para que la app lo maneje
          return res.status(200).json({ reply: replyText });
        }
     }
 
-    // ✅ ENVIAR RESPUESTA FINAL EN JSON QUE TU APP SÍ PUEDE LEER
     res.status(200).json({ reply: replyText });
 
   } catch (err) {
@@ -179,23 +180,63 @@ app.post("/chat", async (req, res) => {
 });
 
 /* ==========================================================================
-🔍 MOTOR DE BÚSQUEDA ROBUSTO (youtube-sr nativo optimizado)
+🔍 MOTOR DE BÚSQUEDA ROBUSTO (youtube-sr con extractor de contingencia DDG)
 ========================================================================== */
 app.get('/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Falta parámetro q' });
+
   try {
-    const searchResults = await YouTube.search(query, { limit: 15, type: 'video' });
+    console.log(`🎵 [SONIC HD] Buscando frecuencias para: "${query}" con youtube-sr...`);
+    
+    // Llamada segura a la función extraída al inicio del archivo
+    if (typeof searchYouTube !== 'function') {
+      throw new Error("La función de búsqueda de youtube-sr no se inicializó correctamente.");
+    }
+
+    const searchResults = await searchYouTube(query, { limit: 15, type: 'video' });
+
+    if (!searchResults || searchResults.length === 0) {
+      throw new Error("IP de Render bloqueada temporalmente por YouTube.");
+    }
+
     const videos = searchResults.map(v => ({
       id: v.id,
       title: v.title,
       artist: v.channel ? v.channel.name : "YouTube Artist",
       cover: v.thumbnail ? v.thumbnail.url : `https://img.youtube.com/vi/${v.id}/mqdefault.jpg`
     }));
-    res.json({ videos: videos });
+
+    return res.json({ videos: videos });
+
   } catch (error) {
-    console.error("Error en búsqueda:", error);
-    res.status(500).json({ videos: [], error: 'Servicio no disponible' });
+    console.warn("⚠️ [CONCURRENCIA] Fallo principal. Desplegando rastreador alterno DuckDuckGo...", error.message);
+    try {
+      const webResults = await performWebSearch(`${query} site:youtube.com/watch`);
+      const fallbackVideos = [];
+
+      for (const item of webResults) {
+        const match = item.url.match(/(?:v=|\/v\/|embed\/|youtu\.be\/)([^&\?#]+)/);
+        if (match && match[1]) {
+          const id = match[1];
+          fallbackVideos.push({
+            id: id,
+            title: item.title.replace(" - YouTube", ""),
+            artist: "Sonic HD Core",
+            cover: `https://img.youtube.com/vi/${id}/mqdefault.jpg`
+          });
+        }
+      }
+
+      if (fallbackVideos.length > 0) {
+        console.log(`✅ [SONIC HD] Extracción exitosa de ${fallbackVideos.length} pistas alternativas.`);
+        return res.json({ videos: fallbackVideos });
+      }
+    } catch (fallbackErr) {
+      console.error("Fallo absoluto en todos los núcleos de búsqueda de audio:", fallbackErr);
+    }
+
+    res.json({ videos: [], error: "Sincronización temporalmente limitada." });
   }
 });
 
