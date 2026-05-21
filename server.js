@@ -7,7 +7,6 @@ import ytSearch from "yt-search"; // 🔥 Cambiado por el nuevo motor blindado
 import ytdl from "@distube/ytdl-core";
 
 // 🔥 Extractor seguro para evitar el error "is not a function" causado por módulos ES6/CommonJS
-const searchYouTube = youtubeSr.search || youtubeSr.default?.search || youtubeSr;
 
 dotenv.config();
 
